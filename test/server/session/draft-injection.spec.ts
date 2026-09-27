@@ -104,6 +104,18 @@ describe("attachDraftInjection", () => {
     expect(t.writes[0].split(PASTE_END)).toHaveLength(2);
   });
 
+  // Claude Code 2.1.283 folds a single bracketed paste over 800 characters into a
+  // "[Pasted text #N]" placeholder, so an initialPrompt this long must go out as several
+  // <=800-char pastes, all in the same write that precedes the separate submit.
+  it("splits a 900-character initialPrompt into <=800-char bracketed pastes", () => {
+    const t = target();
+    const text = "y".repeat(900);
+    typeAndSubmit(attachDraftInjection(t.entry, text, undefined, () => CR));
+    // The guard space (submittableLine) lands on the end of the whole line, in the second frame.
+    const line = `${text} `;
+    expect(t.writes).toEqual([`${PASTE_START}${line.slice(0, 800)}${PASTE_END}${PASTE_START}${line.slice(800)}${PASTE_END}`, CR]);
+  });
+
   it("adds exactly one space, and none to text that already ends in one", () => {
     const t = target();
     typeAndSubmit(attachDraftInjection(t.entry, "run me ", undefined, () => CR));

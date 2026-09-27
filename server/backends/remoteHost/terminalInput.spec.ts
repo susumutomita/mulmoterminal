@@ -225,6 +225,26 @@ describe("sendTerminalInput", () => {
   });
 });
 
+// Claude Code 2.1.283 folds a single bracketed paste over 800 characters into a
+// "[Pasted text #N]" placeholder, which then reaches the model wrapped in `<pasted_content>` and
+// drops a leading `/command`. The phone's input is exactly the paste this bites, so a long line
+// must go out as several <=800-char pastes in the one write, never one long paste.
+describe("sending text longer than 800 characters", () => {
+  it("splits a 1234-character line into <=800-char bracketed pastes in a single write", async () => {
+    const { chunks, flushSubmit, send } = recorder();
+    const text = "x".repeat(1234);
+    const sent = send("s1", text);
+    await tick();
+    // The guard space (submittableLine) lands on the END of the whole line, so it is the last
+    // character of the second frame, not a third frame of its own.
+    const line = `${text} `;
+    expect(chunks).toEqual([`${PASTE_START}${line.slice(0, 800)}${PASTE_END}${PASTE_START}${line.slice(800)}${PASTE_END}`]);
+    flushSubmit();
+    await expect(sent).resolves.toEqual({ sent: true });
+    expect(chunks[1]).toBe("\r");
+  });
+});
+
 // #1142: a slash command from the phone stopped at the host's input box with the command menu
 // open, and no resend got past it — on a host whose Claude submits with ESC+CR, the ESC is eaten
 // as that menu's dismiss key. The paste now ends in a space, which closes the menu. The sanitizer

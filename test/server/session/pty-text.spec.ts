@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { sanitizeDraftText, sanitizeMultilineText } from "../../../server/session/pty-text.js";
+import { bracketedPaste, sanitizeDraftText, sanitizeMultilineText } from "../../../server/session/pty-text.js";
+
+const PASTE_START = "\x1b[200~";
+const PASTE_END = "\x1b[201~";
+const frame = (text: string): string => `${PASTE_START}${text}${PASTE_END}`;
 
 // This is the guard between untrusted text (a collection action, a custom view) and a
 // live terminal. The draft is delivered wrapped in a bracketed paste, so any control
@@ -86,5 +90,30 @@ describe("sanitizeMultilineText", () => {
     expect(sanitizeMultilineText("")).toBe("");
     expect(sanitizeMultilineText("\n\n\n")).toBe("");
     expect(sanitizeMultilineText("\x00\x03")).toBe("");
+  });
+});
+
+// The 800 boundary is Claude Code 2.1.283's own paste-folding threshold (measured), not a value
+// this repo chose — see pty-text.ts for the fact.
+describe("bracketedPaste", () => {
+  it("frames short text as a single paste", () => {
+    expect(bracketedPaste("git status")).toBe(frame("git status"));
+  });
+
+  it("keeps exactly 800 code units in one frame", () => {
+    const text = "a".repeat(800);
+    expect(bracketedPaste(text)).toBe(frame(text));
+  });
+
+  it("splits 801 code units into 800 + 1", () => {
+    const text = "a".repeat(801);
+    expect(bracketedPaste(text)).toBe(frame(text.slice(0, 800)) + frame(text.slice(800)));
+  });
+
+  // A code point straddling the boundary (799 + a 2-unit surrogate pair = 801) must move whole
+  // into the next chunk rather than have the pair itself split.
+  it("never splits a surrogate pair across the boundary", () => {
+    const text = `${"a".repeat(799)}😀b`;
+    expect(bracketedPaste(text)).toBe(frame("a".repeat(799)) + frame("😀b"));
   });
 });
