@@ -5,7 +5,7 @@
 import type { IPty } from "node-pty";
 import { claudeAdapter } from "../agents/claude.js";
 import type { PtyEntry } from "./types.js";
-import { sanitizeDraftText } from "./pty-text.js";
+import { bracketedPaste, sanitizeDraftText } from "./pty-text.js";
 import { squashForMarker, trustDialogIsUp } from "./pty-scan.js";
 import { planDraftInjection } from "./draft-plan.js";
 import { submittableLineForAgent } from "../../common/terminalSubmit.js";
@@ -100,7 +100,7 @@ export function attachDraftInjection(
       // would be a keystroke, which is exactly what an open menu reads. A draft keeps its text
       // byte-exact: the user's own Enter is a keystroke they can retry once they see the menu.
       const line = autoSubmit ? submittableLineForAgent(entry.agent, draftText) : draftText;
-      entry.term.write(`\x1b[200~${line}\x1b[201~`);
+      entry.term.write(bracketedPaste(line));
       if (autoSubmit) {
         setTimeout(() => {
           try {

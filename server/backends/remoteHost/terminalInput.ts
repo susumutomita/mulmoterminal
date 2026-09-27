@@ -21,6 +21,7 @@
 
 import type { SessionAgent } from "../../../common/sessionAgent.js";
 import { submittableLineForAgent } from "../../../common/terminalSubmit.js";
+import { bracketedPaste } from "../../session/pty-text.js";
 
 // Strip ALL control bytes (C0/C1 — ESC, Ctrl-C, CR/LF, and an embedded
 // bracketed-paste terminator). Only printable text survives, whitespace collapsed.
@@ -34,9 +35,6 @@ const CONTROL_BYTES_RE = /[\u0000-\u001F\u007F-\u009F]+/g;
 // reach a shell for real (`HISTCONTROL=ignorespace`). Text that needs to END in a space to submit
 // gets that from submittableLine, AFTER this emptiness decision — never by trimming less (#1142).
 export const sanitizeTerminalInput = (text: string): string => text.replace(CONTROL_BYTES_RE, " ").replace(/\s+/g, " ").trim();
-
-export const PASTE_START = "\x1b[200~";
-export const PASTE_END = "\x1b[201~";
 
 // An agent's input box keeps whatever the user typed on the host until they submit it,
 // so a paste lands AFTER that draft and the two are submitted merged — "yes I already
@@ -101,7 +99,7 @@ const defaultSchedule = (submit: () => void): void => {
 const typeAndSubmit = (deps: TerminalInputDeps, sessionId: string, safe: string): Promise<void> => {
   const clear = deps.canClearBox?.(sessionId) ? CLEAR_BOX : "";
   const line = submittableLineForAgent(deps.sessionAgent?.(sessionId), safe);
-  if (!deps.writeToSession(sessionId, `${clear}${PASTE_START}${line}${PASTE_END}`)) {
+  if (!deps.writeToSession(sessionId, `${clear}${bracketedPaste(line)}`)) {
     return Promise.reject(new Error(`session ${sessionId} has no live terminal on this host`));
   }
   const submit = deps.submitSequence?.(sessionId) ?? "\r";

@@ -2,7 +2,8 @@
 import { describe, it, expect } from "vitest";
 
 import type { SessionAgent } from "../../../common/sessionAgent.js";
-import { CLEAR_BOX, PASTE_END, PASTE_START, canClearInputBox, createTerminalInputSender, sanitizeTerminalInput } from "./terminalInput.js";
+import { PASTE_END, PASTE_START } from "../../session/pty-text.js";
+import { CLEAR_BOX, canClearInputBox, createTerminalInputSender, sanitizeTerminalInput } from "./terminalInput.js";
 
 // Collects what would have reached the PTY, and runs the delayed Enter on demand
 // so the tests never wait on real time.
@@ -225,10 +226,6 @@ describe("sendTerminalInput", () => {
   });
 });
 
-// Claude Code 2.1.283 folds a single bracketed paste over 800 characters into a
-// "[Pasted text #N]" placeholder, which then reaches the model wrapped in `<pasted_content>` and
-// drops a leading `/command`. The phone's input is exactly the paste this bites, so a long line
-// must go out as several <=800-char pastes in the one write, never one long paste.
 describe("sending text longer than 800 characters", () => {
   it("splits a 1234-character line into <=800-char bracketed pastes in a single write", async () => {
     const { chunks, flushSubmit, send } = recorder();

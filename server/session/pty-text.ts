@@ -32,3 +32,30 @@ export function sanitizeMultilineText(text: string): string {
   }
   return out.join("\n").trim();
 }
+
+export const PASTE_START = "\x1b[200~";
+export const PASTE_END = "\x1b[201~";
+
+// Claude Code 2.1.283 folds a single bracketed paste over this many UTF-16 code units into a
+// "[Pasted text #N]" placeholder; the turn then reaches the model as `<pasted_content>`, told the
+// content may carry instructions the user didn't write, and a leading "/command" never runs as a
+// slash command. Measured boundary: 800 stays inline, 801 collapses — same boundary for ASCII and
+// multi-byte (Japanese) text.
+const PASTE_CHUNK_MAX = 800;
+
+// Frame text as one or more consecutive bracketed pastes, each at most PASTE_CHUNK_MAX UTF-16
+// code units, so a paste this long never crosses the fold boundary above. Iterates code points,
+// not UTF-16 units, so a surrogate pair is deferred whole to the next chunk rather than split.
+export function bracketedPaste(text: string): string {
+  const chunks: string[] = [];
+  let chunk = "";
+  for (const codePoint of text) {
+    if (chunk.length + codePoint.length > PASTE_CHUNK_MAX) {
+      chunks.push(chunk);
+      chunk = "";
+    }
+    chunk += codePoint;
+  }
+  chunks.push(chunk);
+  return chunks.map((c) => `${PASTE_START}${c}${PASTE_END}`).join("");
+}
